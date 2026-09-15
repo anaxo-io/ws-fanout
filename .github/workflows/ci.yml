@@ -24,7 +24,7 @@ jobs:
       # cargo fetches every git dependency in the manifest, feature or not, and
       # GITHUB_TOKEN cannot read the private `outcry` repository. Until outcry is
       # public the dependency is stripped here; the `outcry` job exercises it (#3).
-      - run: sed -i '/^outcry = /d; /^\[\[example\]\]/,/^$/d' Cargo.toml
+      - run: sed -i '/^outcry = { /d; s/^outcry = \["dep:outcry"\]/outcry = []/; /^\[\[example\]\]/,/^$/d' Cargo.toml
       - run: cargo fmt --all -- --check
       - run: cargo clippy --all-targets -- -D warnings
       - run: cargo clippy --all-targets --features jwt -- -D warnings
@@ -40,7 +40,7 @@ jobs:
       # cargo fetches every git dependency in the manifest, feature or not, and
       # GITHUB_TOKEN cannot read the private `outcry` repository. Until outcry is
       # public the dependency is stripped here; the `outcry` job exercises it (#3).
-      - run: sed -i '/^outcry = /d; /^\[\[example\]\]/,/^$/d' Cargo.toml
+      - run: sed -i '/^outcry = { /d; s/^outcry = \["dep:outcry"\]/outcry = []/; /^\[\[example\]\]/,/^$/d' Cargo.toml
       - run: cargo test
       - run: cargo test --features jwt
 
@@ -74,7 +74,7 @@ jobs:
       # cargo fetches every git dependency in the manifest, feature or not, and
       # GITHUB_TOKEN cannot read the private `outcry` repository. Until outcry is
       # public the dependency is stripped here; the `outcry` job exercises it (#3).
-      - run: sed -i '/^outcry = /d; /^\[\[example\]\]/,/^$/d' Cargo.toml
+      - run: sed -i '/^outcry = { /d; s/^outcry = \["dep:outcry"\]/outcry = []/; /^\[\[example\]\]/,/^$/d' Cargo.toml
       - run: cargo doc --no-deps --features jwt
 
   msrv:
@@ -88,7 +88,7 @@ jobs:
       # cargo fetches every git dependency in the manifest, feature or not, and
       # GITHUB_TOKEN cannot read the private `outcry` repository. Until outcry is
       # public the dependency is stripped here; the `outcry` job exercises it (#3).
-      - run: sed -i '/^outcry = /d; /^\[\[example\]\]/,/^$/d' Cargo.toml
+      - run: sed -i '/^outcry = { /d; s/^outcry = \["dep:outcry"\]/outcry = []/; /^\[\[example\]\]/,/^$/d' Cargo.toml
       - run: rm -f rust-toolchain.toml
       - run: cargo check --all-targets --features jwt
 
@@ -101,5 +101,5 @@ jobs:
       # cargo fetches every git dependency in the manifest, feature or not, and
       # GITHUB_TOKEN cannot read the private `outcry` repository. Until outcry is
       # public the dependency is stripped here; the `outcry` job exercises it (#3).
-      - run: sed -i '/^outcry = /d; /^\[\[example\]\]/,/^$/d' Cargo.toml
+      - run: sed -i '/^outcry = { /d; s/^outcry = \["dep:outcry"\]/outcry = []/; /^\[\[example\]\]/,/^$/d' Cargo.toml
       - uses: EmbarkStudios/cargo-deny-action@v2

@@ -51,7 +51,7 @@
 //!
 //! The protocol is specified in `docs/protocol.md`. With the `outcry` feature the server
 //! can be fed from a shared-memory queue on a dedicated thread; see
-//! [`Server::consume_outcry`].
+//! `Server::consume_outcry` in the `outcry_source` module.
 
 #![forbid(unsafe_code)]
 #![warn(missing_docs)]
@@ -88,6 +88,7 @@ pub struct Server {
     shared: Arc<server::Shared>,
     addr: SocketAddr,
     /// Source threads hold a `Weak` to this; when the last `Server` clone goes, they stop.
+    #[cfg_attr(not(feature = "outcry"), allow(dead_code))]
     alive: Arc<()>,
 }
 
