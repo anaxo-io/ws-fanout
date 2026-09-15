@@ -1,0 +1,4 @@
+# The optional `outcry` dependency is a git source. Fetching through the git CLI lets
+# cargo use the credential helper and SSH configuration already set up for GitHub.
+[net]
+git-fetch-with-cli = true

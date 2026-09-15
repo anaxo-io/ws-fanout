@@ -1,0 +1,19 @@
+version: 2
+updates:
+  - package-ecosystem: cargo
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+
+  - package-ecosystem: github-actions
+    directory: "/"
+    schedule:
+      interval: weekly
+    ignore:
+      # dtolnay/rust-toolchain is referenced by a tag naming the Rust toolchain
+      # version, not the action version: the msrv job pins @1.88 to match
+      # rust-version in Cargo.toml. Dependabot reads that tag as a version to
+      # bump, which asks CI to install a Rust release that does not exist (orderbook-rs#4).
+      # Change this reference only when the MSRV itself changes.
+      - dependency-name: "dtolnay/rust-toolchain"

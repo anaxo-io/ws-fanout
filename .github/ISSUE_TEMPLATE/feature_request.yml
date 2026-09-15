@@ -1,0 +1,37 @@
+name: Feature request
+description: Suggest something the crate should do and currently does not
+labels: [enhancement]
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: The problem
+      description: >
+        What are you trying to do that this crate makes hard or impossible? Describe the
+        situation rather than the solution you have in mind.
+    validations:
+      required: true
+
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed API
+      description: If you have a shape in mind, sketch it.
+      render: rust
+
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: What you do today
+      description: How are you working around it?
+
+  - type: checkboxes
+    id: scope
+    attributes:
+      label: Scope check
+      description: >
+        This crate is an in-process order book data structure. It does no I/O and speaks no
+        exchange protocol.
+      options:
+        - label: This request does not require network access or exchange-specific parsing.
+          required: true

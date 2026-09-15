@@ -1,0 +1,48 @@
+[package]
+name = "ws-fanout"
+version = "0.1.0"
+edition = "2021"
+rust-version = "1.88"
+description = "WebSocket fan-out server: string channels, opaque JSON payloads serialised once per publish, bounded per-client queues, real heartbeats, pluggable auth"
+repository = "https://github.com/anaxo-io/ws-fanout"
+documentation = "https://docs.rs/ws-fanout"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+keywords = ["websocket", "pubsub", "fanout", "broadcast", "realtime"]
+categories = ["network-programming", "asynchronous", "web-programming::websocket"]
+exclude = ["/.github", "/deny.toml", "/rust-toolchain.toml"]
+
+[dependencies]
+futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = { version = "1.0", features = ["raw_value"] }
+thiserror = "2.0"
+tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+tracing = "0.1"
+
+jsonwebtoken = { version = "9", optional = true }
+outcry = { version = "0.1.0", git = "https://github.com/anaxo-io/outcry", tag = "v0.1.0", optional = true }
+
+[features]
+default = []
+# HS256 JWT validator behind the TokenValidator trait.
+jwt = ["dep:jsonwebtoken"]
+# Feed the server from an outcry shared-memory queue on a dedicated thread.
+outcry = ["dep:outcry"]
+
+[dev-dependencies]
+tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync", "signal"] }
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake"] }
+jsonwebtoken = "9"
+
+[[example]]
+name = "gateway"
+required-features = ["outcry"]
+
+[[example]]
+name = "synthetic_feed"
+required-features = ["outcry"]
+
+[package.metadata.docs.rs]
+all-features = true
