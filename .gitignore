@@ -3,3 +3,6 @@ Cargo.lock
 *.swp
 .DS_Store
 !src/bin/
+
+# Internal working notes for Claude Code sessions.
+NOTES.md
