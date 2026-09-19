@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/anaxo-io/ws-fanout/actions/workflows/ci.yml/badge.svg)](https://github.com/anaxo-io/ws-fanout/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
+[![crates.io](https://img.shields.io/crates/v/ws-fanout.svg)](https://crates.io/crates/ws-fanout)
+[![docs.rs](https://img.shields.io/docsrs/ws-fanout)](https://docs.rs/ws-fanout)
 [![MSRV](https://img.shields.io/badge/MSRV-1.89-blue.svg)](https://blog.rust-lang.org/)
 
 A WebSocket fan-out server for market data and anything else shaped like it: publish a
