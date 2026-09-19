@@ -9,6 +9,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Fixed
 
+- CI builds the manifest as written. `outcry` is public now, so the five jobs that
+  stripped the git dependency with `sed` before building no longer need to, and the
+  `autoexamples = false` that stopped the stripped example blocks being rediscovered is
+  gone with them. The `test (outcry feature)` job is no longer advisory: it is a required
+  check like the others ([#3](https://github.com/anaxo-io/ws-fanout/issues/3)).
 - Slow-client eviction now counts the drops it was meant to count. Only a failed reply to
   an inbound message was recorded, and the counter was never reset, so it was a lifetime
   total rather than a streak — fan-out drops, the only kind a genuinely slow client

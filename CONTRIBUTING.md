@@ -24,8 +24,8 @@ cargo test --features jwt
 cargo doc --no-deps --features jwt
 ```
 
-If you have access to `outcry`, add `--features outcry,jwt` to the clippy and test lines.
-CI runs all of these plus an MSRV check against Rust 1.89 and `cargo deny check`.
+CI runs all of these, again with `--features outcry,jwt`, plus an MSRV check against
+Rust 1.89 and `cargo deny check`.
 
 ## Releasing
 

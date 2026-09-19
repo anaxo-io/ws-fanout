@@ -22,8 +22,8 @@ cargo test --features jwt
 cargo doc --no-deps --features jwt
 ```
 
-With access to `outcry`, add `--features outcry,jwt` to the clippy and test lines. CI runs
-the above plus an MSRV check against Rust 1.89 and `cargo deny check`.
+CI runs the above, again with `--features outcry,jwt`, plus an MSRV check against Rust
+1.89 and `cargo deny check`.
 
 ## What this crate is careful about
 
@@ -46,26 +46,13 @@ request. The three that matter most:
 Also: `#![forbid(unsafe_code)]` stays, and the `authenticated` acknowledgement is part of
 the contract — clients wait for it before subscribing.
 
-## The outcry dependency, and why CI looks odd
+## The outcry dependency
 
-The optional `outcry` feature depends on the private `anaxo-io/outcry` repository by git
-tag. Cargo resolves **every** git source in a manifest whether or not its feature is
-enabled, and a workflow's `GITHUB_TOKEN` can only read its own repository, so without help
-all jobs fail rather than just the feature job. Two workarounds are in place:
-
-1. Each required job strips the dependency line from `Cargo.toml` with `sed` before
-   building. Keep the `outcry = []` feature declaration when stripping, or
-   `cfg(feature = "outcry")` becomes an unknown-value error, and note that
-   `autoexamples = false` exists so the stripped example blocks are not re-discovered.
-2. The job that does enable the feature is `continue-on-error` and is not a required
-   check.
-
-Locally, `.cargo/config.toml` sets `git-fetch-with-cli = true` so cargo uses the `gh`
-credential helper.
-
-**When `outcry` becomes public or is published to crates.io**, delete the strip steps,
-drop the `continue-on-error`, add `test (outcry feature)` to branch protection, and close
-issue #3. A breaking change in `outcry` means a coordinated tag bump here.
+The optional `outcry` feature depends on `anaxo-io/outcry` by git tag, not by crates.io
+version, so `cargo package` cannot run here and `release.yml` passes `package: false`. A
+breaking change in `outcry` means a coordinated tag bump here, and its MSRV is a floor
+for ours. Locally, `.cargo/config.toml` sets `git-fetch-with-cli = true` so cargo shares
+the system git's credentials and proxy settings.
 
 ## Repository conventions
 

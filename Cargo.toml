@@ -3,8 +3,6 @@ name = "ws-fanout"
 version = "0.1.1"
 edition = "2021"
 rust-version = "1.89"
-# Examples need the outcry feature and are declared explicitly below.
-autoexamples = false
 description = "WebSocket fan-out server: string channels, opaque JSON payloads serialised once per publish, bounded per-client queues, real heartbeats, pluggable auth"
 repository = "https://github.com/anaxo-io/ws-fanout"
 documentation = "https://docs.rs/ws-fanout"
