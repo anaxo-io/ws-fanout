@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.1] - 2026-09-19
+
 ### Fixed
 
 - Two comments named repositories that are not public; they now describe the thing
@@ -135,7 +137,8 @@ Initial release.
 - The `outcry` feature's CI job is advisory while `outcry` is a private git dependency
   ([#3](https://github.com/anaxo-io/ws-fanout/issues/3)).
 
-[Unreleased]: https://github.com/anaxo-io/ws-fanout/compare/v0.2.0...HEAD
+[Unreleased]: https://github.com/anaxo-io/ws-fanout/compare/v0.2.1...HEAD
+[0.2.1]: https://github.com/anaxo-io/ws-fanout/releases/tag/v0.2.1
 [0.2.0]: https://github.com/anaxo-io/ws-fanout/releases/tag/v0.2.0
 [0.1.1]: https://github.com/anaxo-io/ws-fanout/compare/v0.1.0...v0.1.1
 [0.1.0]: https://github.com/anaxo-io/ws-fanout/releases/tag/v0.1.0
