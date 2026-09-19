@@ -79,3 +79,12 @@ issue #3. A breaking change in `outcry` means a coordinated tag bump here.
   action version.
 - `gh pr checks` returns nothing for these repos. Read status from
   `gh run list --json conclusion` and `gh run view <id> --json jobs` instead.
+- Renaming a CI job renames its status check, and branch protection matches contexts by
+  name. Repatch it in the same change or the old context waits forever — silently, until
+  the day pull requests are required. The `msrv (1.88)` → `msrv (1.89)` rename hit this:
+
+  ```bash
+  gh api repos/anaxo-io/ws-fanout/branches/main/protection/required_status_checks
+  gh api -X PATCH repos/anaxo-io/ws-fanout/branches/main/protection/required_status_checks \
+    --input -   # {"strict":true,"contexts":[...]}
+  ```
