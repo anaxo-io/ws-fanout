@@ -5,8 +5,8 @@ name: Release
 # section is missing, so the release and the changelog cannot disagree.
 #
 # There is no binary matrix here as there is in other repositories: this crate is a
-# library and has no `[[bin]]`. The equivalent artefact check is `cargo package`, which
-# builds the crate from exactly the files that would ship.
+# library and has no `[[bin]]`. The equivalent artefact check is `cargo package`, though
+# see what it can and cannot prove here while `outcry` is a private git source.
 on:
   push:
     tags: ["v*"]
@@ -51,8 +51,14 @@ jobs:
       # commit on main has been through the full CI matrix — fmt, clippy, tests, MSRV,
       # deny — and this workflow runs once per release, so its build cache is always
       # cold: repeating the suite costs ten minutes to learn what CI reported minutes
-      # earlier. `cargo package` is the check CI does not do, because it builds the crate
-      # from exactly the files that would ship.
+      # earlier.
+      #
+      # What this step still proves after the strip above: the shipped file set is
+      # complete and builds on its own, which is the one thing CI never checks because
+      # CI builds the working tree. What it cannot prove: anything about the `outcry`
+      # feature. `cargo check --all-features` would cover that and need no strip, but it
+      # cannot run here — GITHUB_TOKEN reads only this repository, which is the whole
+      # reason the strip exists. It becomes the better check the day outcry is public.
       - run: cargo package --allow-dirty
 
   create-release:
