@@ -7,6 +7,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Two comments named repositories that are not public; they now describe the thing
+  rather than name it. One was in `examples/synthetic_feed.rs`, which ships in the crate.
+- A test pins that dropping the last `Server` closes the listener, the fix that shipped
+  in 0.2.0 without one ([#2](https://github.com/anaxo-io/ws-fanout/issues/2)).
+
 ## [0.2.0] - 2026-09-19
 
 ### Fixed

@@ -5,7 +5,7 @@
 //! ```
 //!
 //! Frames are `channel\n{json}`, the encoding `examples/gateway.rs` decodes. A real feed
-//! — `binance-book-sync`, say — would write the same shape from its own process.
+//! — an exchange connector, say — would write the same shape from its own process.
 
 use std::time::{Duration, Instant};
 
