@@ -9,9 +9,12 @@
 
 use serde::{Deserialize, Serialize};
 use serde_json::value::RawValue;
+use tokio_tungstenite::tungstenite::protocol::frame::Utf8Bytes;
+use tokio_tungstenite::tungstenite::Message;
 
 /// What a client may send.
 #[derive(Debug, Clone, Deserialize)]
+#[non_exhaustive]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ClientMessage {
     /// The first message on a connection: present a token.
@@ -39,6 +42,7 @@ pub enum ClientMessage {
 
 /// What the server sends. Built by [`ServerMessage::to_frame`] into a shared text frame.
 #[derive(Debug, Clone, Serialize)]
+#[non_exhaustive]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ServerMessage<'a> {
     /// The token was accepted. Sent before anything else; subscriptions are accepted only
@@ -111,6 +115,8 @@ impl ServerMessage<'_> {
     pub fn to_frame(&self) -> Frame {
         // Every variant is serialisable by construction; an allocation failure is the
         // only way this fails, and that is not something to handle here.
+        // `String` converts into the frame's backing buffer without copying; `&str`
+        // would not, and that copy would then happen once per subscriber.
         Frame(
             serde_json::to_string(self)
                 .expect("ServerMessage is always serialisable")
@@ -120,13 +126,28 @@ impl ServerMessage<'_> {
 }
 
 /// A serialised server message, cheap to clone and share between connections.
+///
+/// The field is private: it holds the same buffer type the WebSocket sink takes, so
+/// sending one to a subscriber is a refcount bump rather than a copy of the JSON.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Frame(pub std::sync::Arc<str>);
+pub struct Frame(Utf8Bytes);
 
 impl Frame {
     /// The JSON text.
     pub fn as_str(&self) -> &str {
-        &self.0
+        self.0.as_str()
+    }
+
+    /// The frame as a text message, sharing this frame's buffer.
+    pub(crate) fn to_message(&self) -> Message {
+        Message::Text(self.0.clone())
+    }
+}
+
+#[cfg(test)]
+impl From<&str> for Frame {
+    fn from(s: &str) -> Self {
+        Frame(s.into())
     }
 }
 
@@ -183,6 +204,20 @@ mod tests {
         assert!(frame
             .as_str()
             .contains(r#""rejected":[{"channel":"b","reason":"unauthorized"}]"#));
+    }
+
+    #[test]
+    fn a_frame_is_sent_without_copying_its_json() {
+        let frame = ServerMessage::Pong { timestamp: 7 }.to_frame();
+        let Message::Text(text) = frame.to_message() else {
+            panic!("a frame is always a text message")
+        };
+        assert_eq!(
+            frame.as_str().as_ptr(),
+            text.as_str().as_ptr(),
+            "the message must share the frame's buffer; one copy per subscriber is the \
+             cost this type exists to avoid"
+        );
     }
 
     #[test]

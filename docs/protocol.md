@@ -8,6 +8,7 @@ except `authenticated`, `resync` and `error`.
 
 1. Client opens the WebSocket.
 2. Client sends `auth` as its **first** message, within the auth timeout (10 s default).
+   The same timeout covers the WebSocket handshake itself.
 3. Server answers `authenticated` or `error` + close.
 4. Client subscribes.
 
@@ -27,7 +28,7 @@ Sending anything other than `auth` first, or waiting too long, closes the connec
 | `type` | Fields | When |
 | --- | --- | --- |
 | `authenticated` | `subject: string` | Once, after a valid `auth`. Subscribe after this. |
-| `subscribed` | `channels: string[]`, `rejected?: {channel, reason}[]` | Per `subscribe`. `channels` lists what is now active. `rejected` is present only when non-empty; `reason` is `unauthorized` or `limit`. |
+| `subscribed` | `channels: string[]`, `rejected?: {channel, reason}[]` | Per `subscribe`. `channels` lists what is now active. `rejected` is present only when non-empty; `reason` is `unauthorized`, `limit` or `invalid`. |
 | `snapshot` | `channel`, `payload` | After `subscribed`, once per newly subscribed channel that has a snapshot. |
 | `unsubscribed` | `channels: string[]` | Per `unsubscribe`. |
 | `data` | `channel: string`, `payload: any` | One per publish per subscribed channel. |
@@ -58,6 +59,7 @@ blocks on any client.
 | `max_connections` | 10 000 | TCP connection refused before the WebSocket handshake |
 | `max_message_size` | 64 KiB | Connection closed |
 | `max_subscriptions` | 256 per connection | Extra channels reported as `rejected/limit` |
+| `max_channel_len` | 256 bytes | Channel reported as `rejected/invalid` |
 | `send_queue` | 256 frames | Frame dropped for that connection |
 | `max_consecutive_drops` | 1 000 | Connection closed |
 

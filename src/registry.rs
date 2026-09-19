@@ -3,8 +3,9 @@
 //! The registry is synchronous on purpose: [`Registry::publish`] is called from whatever
 //! thread produces data — a tokio task, or a dedicated thread draining a shared-memory
 //! queue — and never awaits. Delivery to each connection is a non-blocking `try_send` into
-//! that connection's bounded queue; a full queue drops the frame and counts it. The slow
-//! client pays, never the publisher and never the other clients.
+//! that connection's bounded queue; a full queue drops the frame and counts it against
+//! that connection's consecutive-drop streak, which its own task checks and acts on. The
+//! slow client pays, never the publisher and never the other clients.
 
 use std::collections::{HashMap, HashSet};
 use std::sync::atomic::{AtomicU64, Ordering};
@@ -22,7 +23,9 @@ struct Connection {
     subject: String,
     subscriptions: HashSet<String>,
     tx: mpsc::Sender<Frame>,
-    dropped: u64,
+    /// Consecutive failed deliveries. Reset by the first that succeeds. Atomic because
+    /// the publish path updates it under the read lock, never the write lock.
+    dropped: AtomicU64,
 }
 
 /// Counters, all monotonic except `connections_active`.
@@ -93,7 +96,7 @@ impl Registry {
                 subject,
                 subscriptions: HashSet::new(),
                 tx,
-                dropped: 0,
+                dropped: AtomicU64::new(0),
             },
         );
         Metrics::add(&self.metrics.connections_total, 1);
@@ -231,10 +234,12 @@ impl Registry {
         match conn.tx.try_send(frame.clone()) {
             Ok(()) => {
                 Metrics::add(&self.metrics.frames_sent, 1);
+                conn.dropped.store(0, Ordering::Relaxed);
                 true
             }
             Err(mpsc::error::TrySendError::Full(_)) => {
                 Metrics::add(&self.metrics.frames_dropped, 1);
+                conn.dropped.fetch_add(1, Ordering::Relaxed);
                 tracing::debug!(subject = %conn.subject, "queue full; frame dropped");
                 false
             }
@@ -242,17 +247,13 @@ impl Registry {
         }
     }
 
-    /// How many frames this connection has dropped. Used by the handler to decide when a
-    /// client is too slow to keep.
-    pub(crate) fn record_drop(&self, id: ConnectionId) -> u64 {
-        let mut inner = self.write();
-        match inner.connections.get_mut(&id) {
-            Some(c) => {
-                c.dropped += 1;
-                c.dropped
-            }
-            None => 0,
-        }
+    /// Frames dropped in a row for this connection, counting every delivery path. Its
+    /// own task reads this to decide when the client is too slow to keep.
+    pub(crate) fn drops(&self, id: ConnectionId) -> u64 {
+        self.read()
+            .connections
+            .get(&id)
+            .map_or(0, |c| c.dropped.load(Ordering::Relaxed))
     }
 }
 
@@ -261,7 +262,7 @@ mod tests {
     use super::*;
 
     fn frame(s: &str) -> Frame {
-        Frame(s.into())
+        s.into()
     }
 
     #[test]
@@ -321,5 +322,27 @@ mod tests {
         assert_eq!(reg.publish("ch", &frame("1")), 1);
         assert_eq!(reg.publish("ch", &frame("2")), 0, "queue of one is full");
         assert_eq!(reg.metrics().frames_dropped.load(Ordering::Relaxed), 1);
+    }
+
+    #[test]
+    fn publish_drops_build_a_streak_that_a_delivery_clears() {
+        let reg = Registry::new(Arc::new(Metrics::default()));
+        let (tx, mut rx) = mpsc::channel(1);
+        let id = reg.add("slow".into(), tx);
+        reg.subscribe(id, ["ch".into()], 10);
+
+        reg.publish("ch", &frame("1"));
+        assert_eq!(reg.drops(id), 0, "a delivered frame is not a drop");
+        reg.publish("ch", &frame("2"));
+        reg.publish("ch", &frame("3"));
+        assert_eq!(reg.drops(id), 2, "fan-out drops count, not just replies");
+
+        rx.try_recv().unwrap();
+        reg.publish("ch", &frame("4"));
+        assert_eq!(
+            reg.drops(id),
+            0,
+            "the streak is consecutive, not cumulative"
+        );
     }
 }

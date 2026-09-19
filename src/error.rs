@@ -5,6 +5,7 @@ pub type Result<T> = std::result::Result<T, Error>;
 
 /// Something went wrong starting or running the server.
 #[derive(Debug, thiserror::Error)]
+#[non_exhaustive]
 pub enum Error {
     /// The listener could not be bound or accepted a connection badly.
     #[error("io: {0}")]
@@ -23,12 +24,9 @@ pub enum Error {
     #[error("unauthenticated: {0}")]
     Unauthenticated(String),
 
-    /// The server is at its connection limit.
-    #[error("server full: {max} connections")]
-    Full {
-        /// The configured maximum.
-        max: usize,
-    },
+    /// A [`Config`](crate::Config) field held a value the server cannot run with.
+    #[error("invalid config: {0}")]
+    Config(&'static str),
 }
 
 impl From<tokio_tungstenite::tungstenite::Error> for Error {

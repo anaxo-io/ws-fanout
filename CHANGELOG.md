@@ -7,6 +7,50 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+
+- Slow-client eviction now counts the drops it was meant to count. Only a failed reply to
+  an inbound message was recorded, and the counter was never reset, so it was a lifetime
+  total rather than a streak — fan-out drops, the only kind a genuinely slow client
+  produces, never counted at all and such a client was never closed. Every delivery path
+  updates one per-connection streak, cleared by the first frame that gets through.
+- Sending a frame no longer copies its JSON once per subscriber. `Frame` held an
+  `Arc<str>`, and tungstenite's `Utf8Bytes: From<&str>` is `Bytes::copy_from_slice`, so
+  "serialised once" was true and then undone at the sink. `Frame` now holds the buffer
+  type the sink takes, and sending is a refcount bump.
+- Socket writes have a deadline. Each one happens inside a `select!` branch and a branch
+  body runs to completion, so a peer that stopped reading parked the heartbeat, the
+  inbound reads and the slow-client check for as long as it liked.
+- `max_connections` is a semaphore permit taken before the handshake and held for the
+  connection's life. It counted registered connections, which excluded everything still
+  handshaking or authenticating; the handshake had no timeout of its own either, and now
+  shares the auth timeout.
+- A connection is removed from the registry by a guard, so a panic in an `Authorizer`,
+  `TokenValidator` or `SnapshotSource` no longer leaks its entry and its permit forever.
+- Dropping every `Server` clone stops the accept loop. The doc said so; the `JoinHandle`
+  was discarded.
+- `authenticated` is written to the socket before the connection enters the registry, so
+  a concurrent `resync_all` or `broadcast` cannot overtake the acknowledgement clients are
+  told to wait for.
+
+### Added
+
+- `Config::max_channel_len` (default 256 bytes). Channel names were bounded in number by
+  `max_subscriptions` but not in size, so one connection could retain megabytes of names.
+  Over-long names are reported as `rejected/invalid`.
+- `Builder::bind` validates `Config` and returns the new `Error::Config` instead of
+  letting a zero `send_queue` or `heartbeat_interval` panic inside tokio later, on a task
+  the caller cannot catch.
+
+### Changed
+
+- **Breaking.** `Frame`'s field is private. It was `pub Arc<str>`, which would have made
+  the per-subscriber copy fix a breaking change after publication.
+- **Breaking.** `Error`, `ClientMessage` and `ServerMessage` are `#[non_exhaustive]`, so a
+  new error or wire message is no longer a breaking change.
+- **Breaking.** `Error::Full` is gone. Connections over the limit are now refused in the
+  accept loop, so the variant was unreachable.
+
 ## [0.1.1] - 2026-09-15
 
 ### Fixed

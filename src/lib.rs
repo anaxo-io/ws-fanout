@@ -87,9 +87,20 @@ pub use snapshot::{LastValue, NoSnapshots, SnapshotSource};
 pub struct Server {
     shared: Arc<server::Shared>,
     addr: SocketAddr,
-    /// Source threads hold a `Weak` to this; when the last `Server` clone goes, they stop.
+    /// Dropped with the last `Server` clone, which stops the accept loop. Source threads
+    /// hold a `Weak` to it and stop on the same signal. Held for its `Drop`, so without
+    /// a source feature nothing reads it.
     #[cfg_attr(not(feature = "outcry"), allow(dead_code))]
-    alive: Arc<()>,
+    alive: Arc<Accepting>,
+}
+
+/// The accept loop. Aborting it on drop is what makes "drop every clone to stop" true.
+struct Accepting(tokio::task::JoinHandle<Result<()>>);
+
+impl Drop for Accepting {
+    fn drop(&mut self) {
+        self.0.abort();
+    }
 }
 
 impl Server {
@@ -219,7 +230,14 @@ impl Builder {
     }
 
     /// Bind and start accepting. The accept loop runs on the current tokio runtime.
+    ///
+    /// # Errors
+    ///
+    /// [`Error::Config`] if a [`Config`] field holds a value the server cannot run with,
+    /// checked before the listener is bound.
     pub async fn bind(self, addr: impl ToSocketAddrs) -> Result<Server> {
+        self.config.validate()?;
+        let slots = Arc::new(tokio::sync::Semaphore::new(self.config.max_connections));
         let listener = TcpListener::bind(addr).await?;
         let addr = listener.local_addr()?;
         let shared = Arc::new(server::Shared {
@@ -228,12 +246,13 @@ impl Builder {
             validator: self.validator,
             authorizer: self.authorizer,
             snapshots: self.snapshots,
+            slots,
         });
-        tokio::spawn(server::serve(listener, Arc::clone(&shared)));
+        let accept = tokio::spawn(server::serve(listener, Arc::clone(&shared)));
         Ok(Server {
             shared,
             addr,
-            alive: Arc::new(()),
+            alive: Arc::new(Accepting(accept)),
         })
     }
 }

@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use futures_util::{SinkExt, StreamExt};
 use tokio::net::{TcpListener, TcpStream};
-use tokio::sync::mpsc;
+use tokio::sync::{mpsc, Semaphore};
 use tokio_tungstenite::tungstenite::protocol::WebSocketConfig;
 use tokio_tungstenite::tungstenite::Message;
 use tokio_tungstenite::WebSocketStream;
@@ -27,15 +27,20 @@ pub struct Config {
     pub max_message_size: usize,
     /// Channels one connection may hold.
     pub max_subscriptions: usize,
+    /// Longest channel name accepted; longer ones are rejected as `invalid`. Without it,
+    /// `max_subscriptions` bounds the number of retained names but not their size.
+    pub max_channel_len: usize,
     /// Frames queued per connection before drops begin.
     pub send_queue: usize,
     /// Consecutive drops after which a connection is closed as too slow.
     pub max_consecutive_drops: u64,
-    /// How long a client has to send `auth` after connecting.
+    /// How long a client has to complete the WebSocket handshake and send `auth`. It
+    /// covers the handshake too, so a connection that never upgrades is not free.
     pub auth_timeout: Duration,
     /// How often the server pings.
     pub heartbeat_interval: Duration,
-    /// Silence after which a connection is closed.
+    /// Silence after which a connection is closed. Doubles as the deadline for a single
+    /// socket write: a write still pending after it means the same thing as silence.
     pub heartbeat_timeout: Duration,
 }
 
@@ -45,11 +50,31 @@ impl Default for Config {
             max_connections: 10_000,
             max_message_size: 64 * 1024,
             max_subscriptions: 256,
+            max_channel_len: 256,
             send_queue: 256,
             max_consecutive_drops: 1_000,
             auth_timeout: Duration::from_secs(10),
             heartbeat_interval: Duration::from_secs(30),
             heartbeat_timeout: Duration::from_secs(90),
+        }
+    }
+}
+
+impl Config {
+    /// Reject values that would panic inside tokio, before anything is bound or spawned.
+    pub(crate) fn validate(&self) -> Result<()> {
+        let bad = |field| Err(Error::Config(field));
+        match self {
+            c if c.max_connections == 0 => bad("max_connections must be non-zero"),
+            c if c.max_connections > Semaphore::MAX_PERMITS => {
+                bad("max_connections exceeds the permit limit")
+            }
+            c if c.max_message_size == 0 => bad("max_message_size must be non-zero"),
+            c if c.max_subscriptions == 0 => bad("max_subscriptions must be non-zero"),
+            c if c.max_channel_len == 0 => bad("max_channel_len must be non-zero"),
+            c if c.send_queue == 0 => bad("send_queue must be non-zero"),
+            c if c.heartbeat_interval.is_zero() => bad("heartbeat_interval must be non-zero"),
+            _ => Ok(()),
         }
     }
 }
@@ -61,6 +86,22 @@ pub(crate) struct Shared {
     pub validator: Box<dyn TokenValidator>,
     pub authorizer: Box<dyn Authorizer>,
     pub snapshots: Box<dyn SnapshotSource>,
+    /// One permit per allowed connection, held from before the handshake until the
+    /// connection task ends. Counting registered connections instead would leave every
+    /// client still handshaking or authenticating outside the limit.
+    pub slots: Arc<Semaphore>,
+}
+
+/// Removes a connection from the registry however its task ends, panic included.
+struct Registered<'a> {
+    registry: &'a Registry,
+    id: ConnectionId,
+}
+
+impl Drop for Registered<'_> {
+    fn drop(&mut self) {
+        self.registry.remove(self.id);
+    }
 }
 
 /// Accept loop. Runs until the listener fails.
@@ -68,8 +109,18 @@ pub(crate) async fn serve(listener: TcpListener, shared: Arc<Shared>) -> Result<
     info!(addr = %listener.local_addr()?, "listening");
     loop {
         let (stream, peer) = listener.accept().await?;
+        let Ok(permit) = Arc::clone(&shared.slots).try_acquire_owned() else {
+            shared
+                .registry
+                .metrics()
+                .refused_full
+                .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+            debug!(%peer, "refused: at the connection limit");
+            continue;
+        };
         let shared = Arc::clone(&shared);
         tokio::spawn(async move {
+            let _permit = permit;
             match connection(stream, peer, shared).await {
                 Ok(()) | Err(Error::WebSocket(_)) => {}
                 Err(e) => debug!(%peer, error = %e, "connection ended"),
@@ -79,23 +130,17 @@ pub(crate) async fn serve(listener: TcpListener, shared: Arc<Shared>) -> Result<
 }
 
 async fn connection(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>) -> Result<()> {
-    // The connection limit is checked before the handshake, so a full server costs a
-    // refused TCP connection rather than a WebSocket upgrade.
-    if shared.registry.len() >= shared.config.max_connections {
-        shared
-            .registry
-            .metrics()
-            .refused_full
-            .fetch_add(1, std::sync::atomic::Ordering::Relaxed);
-        return Err(Error::Full {
-            max: shared.config.max_connections,
-        });
-    }
-
     let ws_config = WebSocketConfig::default()
         .max_message_size(Some(shared.config.max_message_size))
         .max_frame_size(Some(shared.config.max_message_size));
-    let mut ws = tokio_tungstenite::accept_async_with_config(stream, Some(ws_config)).await?;
+    // The handshake is on the auth clock too: a client that opens a socket and never
+    // completes the upgrade would otherwise hold its permit forever.
+    let mut ws = tokio::time::timeout(
+        shared.config.auth_timeout,
+        tokio_tungstenite::accept_async_with_config(stream, Some(ws_config)),
+    )
+    .await
+    .map_err(|_| Error::Unauthenticated("handshake timeout".into()))??;
 
     // Authentication: the first text frame must be `auth`, within the timeout.
     let claims = match authenticate(&mut ws, &shared).await {
@@ -106,25 +151,29 @@ async fn connection(stream: TcpStream, peer: SocketAddr, shared: Arc<Shared>) ->
                 message: e.to_string(),
             }
             .to_frame();
-            let _ = ws.send(Message::Text(frame.as_str().into())).await;
+            let _ = ws.send(frame.to_message()).await;
             let _ = ws.close(None).await;
             return Err(e);
         }
     };
 
-    let (tx, rx) = mpsc::channel::<Frame>(shared.config.send_queue);
-    let id = shared.registry.add(claims.subject.clone(), tx);
-    info!(%peer, subject = %claims.subject, "authenticated");
-
-    // The acknowledgement the client waits for before subscribing.
+    // The acknowledgement the client waits for before subscribing. It goes out on the
+    // socket before the connection joins the registry, so no broadcast can overtake it.
     let ack = ServerMessage::Authenticated {
         subject: &claims.subject,
     }
     .to_frame();
-    shared.registry.send(id, &ack);
+    ws.send(ack.to_message()).await?;
+
+    let (tx, rx) = mpsc::channel::<Frame>(shared.config.send_queue);
+    let id = shared.registry.add(claims.subject.clone(), tx);
+    let _registered = Registered {
+        registry: &shared.registry,
+        id,
+    };
+    info!(%peer, subject = %claims.subject, "authenticated");
 
     let result = session(ws, rx, id, &claims, &shared).await;
-    shared.registry.remove(id);
     info!(%peer, subject = %claims.subject, "disconnected");
     result
 }
@@ -154,6 +203,22 @@ async fn authenticate(ws: &mut WebSocketStream<TcpStream>, shared: &Shared) -> R
         .map_err(Error::Unauthenticated)
 }
 
+/// Send one message, giving up if the socket has not taken it within `within`.
+///
+/// Every write here happens inside a `select!` branch, and a branch body runs to
+/// completion before the loop selects again. An unbounded `send` on a peer that has
+/// stopped reading would therefore park the heartbeat, the inbound reads and the
+/// slow-client check for as long as the peer likes.
+async fn send_now<S>(sink: &mut S, msg: Message, within: Duration) -> Result<()>
+where
+    S: SinkExt<Message, Error = tokio_tungstenite::tungstenite::Error> + Unpin,
+{
+    tokio::time::timeout(within, sink.send(msg))
+        .await
+        .map_err(|_| Error::Protocol("write timed out".into()))?
+        .map_err(Into::into)
+}
+
 /// The authenticated lifetime of one connection.
 ///
 /// Liveness is any inbound traffic: a Pong frame answering our Ping frame, a text
@@ -173,13 +238,13 @@ async fn session(
     heartbeat.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Delay);
     heartbeat.tick().await; // the first tick is immediate; skip it
     let mut last_seen = tokio::time::Instant::now();
-    let mut consecutive_drops: u64 = 0;
+    let write_timeout = shared.config.heartbeat_timeout;
 
     loop {
         tokio::select! {
             outbound = rx.recv() => {
                 let Some(frame) = outbound else { break };
-                sink.send(Message::Text(frame.as_str().into())).await?;
+                send_now(&mut sink, frame.to_message(), write_timeout).await?;
             }
 
             inbound = source.next() => {
@@ -188,14 +253,12 @@ async fn session(
                 match msg? {
                     Message::Text(text) => {
                         if let Some(reply) = handle(&text, id, claims, shared) {
-                            if !shared.registry.send(id, &reply) {
-                                consecutive_drops = shared.registry.record_drop(id);
-                            } else {
-                                consecutive_drops = 0;
-                            }
+                            shared.registry.send(id, &reply);
                         }
                     }
-                    Message::Ping(payload) => sink.send(Message::Pong(payload)).await?,
+                    Message::Ping(payload) => {
+                        send_now(&mut sink, Message::Pong(payload), write_timeout).await?
+                    }
                     Message::Pong(_) => {}
                     Message::Close(_) => break,
                     Message::Binary(_) => {
@@ -219,11 +282,13 @@ async fn session(
                     break;
                 }
                 // A Ping *frame*: every conforming client, browsers included, answers it.
-                sink.send(Message::Ping(Vec::new().into())).await?;
+                send_now(&mut sink, Message::Ping(Vec::new().into()), write_timeout).await?;
             }
         }
 
-        if consecutive_drops >= shared.config.max_consecutive_drops {
+        // Every dropped frame counts, whichever path dropped it — fan-out included, which
+        // is the only one a genuinely slow client produces.
+        if shared.registry.drops(id) >= shared.config.max_consecutive_drops {
             warn!(subject = %claims.subject, "too slow; closing");
             let _ = sink.close().await;
             break;
@@ -258,7 +323,10 @@ fn handle(text: &str, id: ConnectionId, claims: &Claims, shared: &Shared) -> Opt
 
         ClientMessage::Subscribe { channels } => {
             let mut rejected = Vec::new();
-            let (allowed, unauthorized): (Vec<String>, Vec<String>) = channels
+            let (sized, oversized): (Vec<String>, Vec<String>) = channels
+                .into_iter()
+                .partition(|ch| ch.len() <= shared.config.max_channel_len);
+            let (allowed, unauthorized): (Vec<String>, Vec<String>) = sized
                 .into_iter()
                 .partition(|ch| shared.authorizer.may_subscribe(claims, ch));
             let (added, over_limit) =
@@ -266,6 +334,12 @@ fn handle(text: &str, id: ConnectionId, claims: &Claims, shared: &Shared) -> Opt
                     .registry
                     .subscribe(id, allowed, shared.config.max_subscriptions);
 
+            for ch in &oversized {
+                rejected.push(Rejected {
+                    channel: ch,
+                    reason: "invalid",
+                });
+            }
             for ch in &unauthorized {
                 rejected.push(Rejected {
                     channel: ch,
@@ -307,5 +381,33 @@ fn handle(text: &str, id: ConnectionId, claims: &Claims, shared: &Shared) -> Opt
         }
 
         ClientMessage::Ping { timestamp } => Some(ServerMessage::Pong { timestamp }.to_frame()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn the_default_config_is_valid() {
+        assert!(Config::default().validate().is_ok());
+    }
+
+    #[test]
+    fn zero_valued_config_is_refused_rather_than_panicking_later() {
+        // `mpsc::channel(0)` and `interval(Duration::ZERO)` both panic inside tokio, well
+        // after `bind` has returned and on a task the caller cannot catch.
+        for spoil in [
+            (|c: &mut Config| c.send_queue = 0) as fn(&mut Config),
+            |c| c.heartbeat_interval = Duration::ZERO,
+            |c| c.max_connections = 0,
+            |c| c.max_message_size = 0,
+            |c| c.max_subscriptions = 0,
+            |c| c.max_channel_len = 0,
+        ] {
+            let mut config = Config::default();
+            spoil(&mut config);
+            assert!(matches!(config.validate(), Err(Error::Config(_))));
+        }
     }
 }
