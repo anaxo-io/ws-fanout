@@ -33,7 +33,7 @@ tokens are validated by a trait you implement (an HS256 JWT validator ships behi
 
 ```toml
 [dependencies]
-ws-fanout = { git = "https://github.com/anaxo-io/ws-fanout", tag = "v0.1.1" }
+ws-fanout = "0.2"
 ```
 
 ```rust
