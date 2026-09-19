@@ -414,3 +414,22 @@ async fn hs256_jwt_is_accepted_and_subject_is_the_claim() {
     assert_eq!(ack["type"], "authenticated");
     assert_eq!(ack["subject"], "alice");
 }
+
+#[tokio::test]
+async fn dropping_the_last_server_closes_the_listener() {
+    let server = server().await;
+    let addr = server.local_addr();
+    TcpStream::connect(addr)
+        .await
+        .expect("listening before drop");
+    drop(server);
+
+    // Abort is asynchronous: the listener closes when the accept task is next polled.
+    tokio::time::timeout(Duration::from_secs(2), async {
+        while TcpStream::connect(addr).await.is_ok() {
+            tokio::task::yield_now().await;
+        }
+    })
+    .await
+    .expect("listener still accepting two seconds after the last Server was dropped");
+}
