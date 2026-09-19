@@ -35,6 +35,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ### Added
 
+- A release workflow, matching the one in `outcry`: pushing a `vX.Y.Z` tag checks the tag
+  against the crate version, runs `cargo package`, and cuts the GitHub release with that
+  version's changelog section as its notes. `cargo package` needs the private `outcry`
+  git source stripped the same way the CI jobs strip it, so it checks the default-feature
+  file set only; the crate is not publishable to crates.io at all until outcry is (#3).
 - `Config::max_channel_len` (default 256 bytes). Channel names were bounded in number by
   `max_subscriptions` but not in size, so one connection could retain megabytes of names.
   Over-long names are reported as `rejected/invalid`.
@@ -50,6 +55,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   new error or wire message is no longer a breaking change.
 - **Breaking.** `Error::Full` is gone. Connections over the limit are now refused in the
   accept loop, so the variant was unreachable.
+- **Breaking.** MSRV is now Rust 1.89, up from 1.88. `outcry` v0.2.0 declares 1.89, so
+  keeping 1.88 here would have been a claim only the jobs that strip the dependency could
+  honour — the `msrv` job strips it, so it would have passed green while the `outcry`
+  feature was broken for anyone on 1.88.
+- `outcry` v0.1.0 to v0.2.0. No source change beyond the MSRV bump above; the consumer
+  API this crate uses is unchanged.
 
 ## [0.1.1] - 2026-09-15
 

@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/anaxo-io/ws-fanout/actions/workflows/ci.yml/badge.svg)](https://github.com/anaxo-io/ws-fanout/actions/workflows/ci.yml)
 [![License: MIT OR Apache-2.0](https://img.shields.io/badge/license-MIT%20OR%20Apache--2.0-blue.svg)](#license)
-[![MSRV](https://img.shields.io/badge/MSRV-1.88-blue.svg)](https://blog.rust-lang.org/)
+[![MSRV](https://img.shields.io/badge/MSRV-1.89-blue.svg)](https://blog.rust-lang.org/)
 
 A WebSocket fan-out server for market data and anything else shaped like it: publish a
 message on a named channel once, every subscriber gets it. Token auth, per-channel

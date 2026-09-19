@@ -78,12 +78,12 @@ jobs:
       - run: cargo doc --no-deps --features jwt
 
   msrv:
-    name: msrv (1.88)
+    name: msrv (1.89)
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@1.88
+      - uses: dtolnay/rust-toolchain@1.89
       - uses: Swatinem/rust-cache@v2
       # cargo fetches every git dependency in the manifest, feature or not, and
       # GITHUB_TOKEN cannot read the private `outcry` repository. Until outcry is
