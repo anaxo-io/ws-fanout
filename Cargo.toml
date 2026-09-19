@@ -1,6 +1,6 @@
 [package]
 name = "ws-fanout"
-version = "0.2.1"
+version = "0.2.2"
 edition = "2021"
 rust-version = "1.89"
 description = "WebSocket fan-out server: string channels, opaque JSON payloads serialised once per publish, bounded per-client queues, real heartbeats, pluggable auth"
