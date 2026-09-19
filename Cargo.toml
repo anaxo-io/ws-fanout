@@ -21,7 +21,7 @@ tokio = { version = "1", features = ["rt", "net", "sync", "time", "macros"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
 tracing = "0.1"
 
-jsonwebtoken = { version = "9", optional = true }
+jsonwebtoken = { version = "11", optional = true, default-features = false, features = ["rust_crypto"] }
 outcry = { version = "0.2.0", optional = true }
 
 [features]
@@ -34,7 +34,7 @@ outcry = ["dep:outcry"]
 [dev-dependencies]
 tokio = { version = "1", features = ["rt-multi-thread", "macros", "time", "net", "sync", "signal"] }
 tokio-tungstenite = { version = "0.30", default-features = false, features = ["connect", "handshake"] }
-jsonwebtoken = "9"
+jsonwebtoken = { version = "11", default-features = false, features = ["rust_crypto"] }
 
 [[example]]
 name = "gateway"

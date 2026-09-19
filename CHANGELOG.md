@@ -14,6 +14,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A test pins that dropping the last `Server` closes the listener, the fix that shipped
   in 0.2.0 without one ([#2](https://github.com/anaxo-io/ws-fanout/issues/2)).
 
+### Changed
+
+- `jsonwebtoken` 9 to 11. Since 10 the crate ships no crypto backend by default and
+  panics at first use unless exactly one of `rust_crypto` or `aws_lc_rs` is enabled, which
+  is why Dependabot's plain version bump failed CI. This crate enables `rust_crypto`, the
+  pure-Rust one, and drops the default `use_pem`: HS256 with `DecodingKey::from_secret`
+  never parses PEM. Its MSRV is 1.88, under ours.
+  `rust_crypto` bundles every algorithm, `rsa` included, and `rsa` carries the unfixed
+  Marvin timing advisory (RUSTSEC-2023-0071); `deny.toml` ignores it with the reason
+  that this crate validates HS256 only, so no RSA code path runs. The same file no
+  longer allows git sources: there is no git dependency left.
+
 ## [0.2.0] - 2026-09-19
 
 ### Fixed

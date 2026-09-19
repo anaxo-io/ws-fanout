@@ -27,9 +27,14 @@ reason = "no TLS in this crate; a transitive openssl pull-in is a mistake"
 
 [advisories]
 yanked = "deny"
+ignore = [
+  # Marvin attack: key recovery from timing RSA private-key operations. The `rsa`
+  # crate arrives through jsonwebtoken's `rust_crypto` backend, which bundles every
+  # algorithm; this crate validates HS256 only, so no RSA key is ever constructed
+  # and no RSA code path runs. No patched `rsa` exists to move to.
+  { id = "RUSTSEC-2023-0071", reason = "rsa is compiled in by jsonwebtoken's rust_crypto bundle and never called: HS256 only" },
+]
 
 [sources]
 unknown-registry = "deny"
-# outcry is an optional git dependency until it is published to crates.io.
-unknown-git = "allow"
-allow-git = ["https://github.com/anaxo-io/outcry"]
+unknown-git = "deny"
