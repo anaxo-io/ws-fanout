@@ -1,0 +1,30 @@
+# Configuration for `cargo release`, which automates the one manual step before a tag:
+# bumping the version, dating the changelog section and fixing its links. See
+# CONTRIBUTING.md for the procedure, and run without `--execute` first — cargo-release
+# is a dry run by default and prints every edit it would make.
+
+# Nothing is pushed to crates.io. Publishing is irreversible in a way tagging is not: a
+# version can be yanked but never replaced or reused. If that changes, it belongs in the
+# release workflow behind a token, not in a local command.
+publish = false
+
+# Releases are cut from main only.
+allow-branch = ["main"]
+
+# Match the existing tags and the `v*` trigger in .github/workflows/release.yml.
+tag-name = "v{{version}}"
+tag-message = "v{{version}}"
+pre-release-commit-message = "chore: release v{{version}}"
+
+# The tagged commit is about to become a public release, and the workflow's checks run
+# only after the tag is pushed — by which point the tag is already public. Failing here
+# instead costs nothing.
+pre-release-hook = ["cargo", "test"]
+
+# Keep a Changelog bookkeeping, identical to what was done by hand for v0.2.0:
+# open a fresh [Unreleased], date the released section, and move the compare link on
+# while adding the new version's own link above the older ones.
+pre-release-replacements = [
+  { file = "CHANGELOG.md", search = "## \\[Unreleased\\]", replace = "## [Unreleased]\n\n## [{{version}}] - {{date}}", exactly = 1 },
+  { file = "CHANGELOG.md", search = "\\[Unreleased\\]: https://github.com/anaxo-io/ws-fanout/compare/v[0-9.]+\\.\\.\\.HEAD", replace = "[Unreleased]: https://github.com/anaxo-io/ws-fanout/compare/v{{version}}...HEAD\n[{{version}}]: https://github.com/anaxo-io/ws-fanout/releases/tag/v{{version}}", exactly = 1 },
+]

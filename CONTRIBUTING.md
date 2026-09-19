@@ -27,6 +27,14 @@ cargo doc --no-deps --features jwt
 If you have access to `outcry`, add `--features outcry,jwt` to the clippy and test lines.
 CI runs all of these plus an MSRV check against Rust 1.89 and `cargo deny check`.
 
+## Releasing
+
+Releases follow the organisation procedure in
+[`anaxo-io/.github` RELEASING.md](https://github.com/anaxo-io/.github/blob/main/RELEASING.md),
+which this repository does not restate. The short version: write the changelog entry as
+your change lands, then a maintainer cuts the release from `main` with `cargo release`,
+driven by `release.toml` here. Nothing is published to crates.io.
+
 ## What this crate is careful about
 
 - **The protocol is a contract.** `docs/protocol.md` is the specification; a change to

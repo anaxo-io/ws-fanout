@@ -28,18 +28,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - A connection is removed from the registry by a guard, so a panic in an `Authorizer`,
   `TokenValidator` or `SnapshotSource` no longer leaks its entry and its permit forever.
 - Dropping every `Server` clone stops the accept loop. The doc said so; the `JoinHandle`
-  was discarded.
+  was discarded ([#2](https://github.com/anaxo-io/ws-fanout/issues/2)).
 - `authenticated` is written to the socket before the connection enters the registry, so
   a concurrent `resync_all` or `broadcast` cannot overtake the acknowledgement clients are
   told to wait for.
 
 ### Added
 
-- A release workflow, matching the one in `outcry`: pushing a `vX.Y.Z` tag checks the tag
-  against the crate version, runs `cargo package`, and cuts the GitHub release with that
-  version's changelog section as its notes. `cargo package` needs the private `outcry`
-  git source stripped the same way the CI jobs strip it, so it checks the default-feature
-  file set only; the crate is not publishable to crates.io at all until outcry is (#3).
+- A release workflow and a `release.toml`, following the organisation procedure in
+  [`anaxo-io/.github` RELEASING.md](https://github.com/anaxo-io/.github/blob/main/RELEASING.md)
+  rather than carrying a copy of it. Pushing a `vX.Y.Z` tag calls the shared workflow,
+  which checks the tag against the crate version and cuts the GitHub release from that
+  version's changelog section. It is passed `package: false`, because `cargo package`
+  resolves every dependency against crates.io whatever the features say and the `outcry`
+  feature is a git source; the `cargo check --all-features` it runs instead needs to read
+  that private repository, so releases stay blocked until outcry is public (#3).
 - `Config::max_channel_len` (default 256 bytes). Channel names were bounded in number by
   `max_subscriptions` but not in size, so one connection could retain megabytes of names.
   Over-long names are reported as `rejected/invalid`.

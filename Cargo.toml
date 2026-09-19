@@ -12,7 +12,7 @@ readme = "README.md"
 license = "MIT OR Apache-2.0"
 keywords = ["websocket", "pubsub", "fanout", "broadcast", "realtime"]
 categories = ["network-programming", "asynchronous", "web-programming::websocket"]
-exclude = ["/.github", "/deny.toml", "/rust-toolchain.toml"]
+exclude = ["/.github", "/deny.toml", "/rust-toolchain.toml", "/release.toml", "/CLAUDE.md"]
 
 [dependencies]
 futures-util = { version = "0.3", default-features = false, features = ["std", "sink"] }

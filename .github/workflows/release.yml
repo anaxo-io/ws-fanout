@@ -1,12 +1,13 @@
 name: Release
 
-# Pushing a `vX.Y.Z` tag publishes the GitHub release for it, with the matching
-# CHANGELOG.md section as its notes. `taiki-e/create-gh-release-action` fails if that
-# section is missing, so the release and the changelog cannot disagree.
+# Cuts the GitHub release for a `vX.Y.Z` tag. The procedure this completes, and the
+# branch rules that go with it, are in
+# https://github.com/anaxo-io/.github/blob/main/RELEASING.md.
 #
-# There is no binary matrix here as there is in other repositories: this crate is a
-# library and has no `[[bin]]`. The equivalent artefact check is `cargo package`, though
-# see what it can and cannot prove here while `outcry` is a private git source.
+# `package: false` because the `outcry` feature is a git dependency and `cargo package`
+# resolves every dependency against crates.io regardless of features. The shared workflow
+# runs `cargo check --all-features` instead — which needs to read the private `outcry`
+# repository, so this cannot pass until outcry is public (#3).
 on:
   push:
     tags: ["v*"]
@@ -14,59 +15,8 @@ on:
 permissions:
   contents: write
 
-env:
-  CARGO_TERM_COLOR: always
-  RUSTFLAGS: -D warnings
-
 jobs:
-  verify:
-    name: verify the tag
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
-    steps:
-      - uses: actions/checkout@v7
-      - uses: dtolnay/rust-toolchain@stable
-      - uses: Swatinem/rust-cache@v2
-
-      # The release action reads the changelog but not Cargo.toml, and a tag that
-      # disagrees with the version is a mistake worth catching before anything is public.
-      - name: Tag matches the crate version
-        run: |
-          tag="${GITHUB_REF_NAME#v}"
-          crate=$(cargo metadata --no-deps --format-version 1 | jq -r '.packages[0].version')
-          if [ "$tag" != "$crate" ]; then
-            echo "::error::tag $GITHUB_REF_NAME does not match Cargo.toml version $crate"
-            exit 1
-          fi
-
-      # `cargo package` resolves every dependency against crates.io, where the private
-      # `outcry` git source does not exist, so it is stripped here as it is in the CI
-      # jobs (#3). What remains is a real check of the default-feature file set; what it
-      # cannot check is the `outcry` feature, and this crate is not publishable to
-      # crates.io at all while that dependency is a git source. Delete the strip step
-      # when outcry is published.
-      - run: sed -i '/^outcry = { /d; s/^outcry = \["dep:outcry"\]/outcry = []/; /^\[\[example\]\]/,/^$/d' Cargo.toml
-
-      # Deliberately not re-running the test suite. Releases are cut from main, every
-      # commit on main has been through the full CI matrix — fmt, clippy, tests, MSRV,
-      # deny — and this workflow runs once per release, so its build cache is always
-      # cold: repeating the suite costs ten minutes to learn what CI reported minutes
-      # earlier.
-      #
-      # What this step still proves after the strip above: the shipped file set is
-      # complete and builds on its own, which is the one thing CI never checks because
-      # CI builds the working tree. What it cannot prove: anything about the `outcry`
-      # feature. `cargo check --all-features` would cover that and need no strip, but it
-      # cannot run here — GITHUB_TOKEN reads only this repository, which is the whole
-      # reason the strip exists. It becomes the better check the day outcry is public.
-      - run: cargo package --allow-dirty
-
-  create-release:
-    needs: verify
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v7
-      - uses: taiki-e/create-gh-release-action@v1
-        with:
-          changelog: CHANGELOG.md
-          token: ${{ secrets.GITHUB_TOKEN }}
+  release:
+    uses: anaxo-io/.github/.github/workflows/release-rust.yml@main
+    with:
+      package: false
