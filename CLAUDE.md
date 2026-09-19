@@ -48,11 +48,8 @@ the contract — clients wait for it before subscribing.
 
 ## The outcry dependency
 
-The optional `outcry` feature depends on `anaxo-io/outcry` by git tag, not by crates.io
-version, so `cargo package` cannot run here and `release.yml` passes `package: false`. A
-breaking change in `outcry` means a coordinated tag bump here, and its MSRV is a floor
-for ours. Locally, `.cargo/config.toml` sets `git-fetch-with-cli = true` so cargo shares
-the system git's credentials and proxy settings.
+The optional `outcry` feature depends on `outcry` from crates.io. A breaking change there
+means a coordinated bump here, and its MSRV is a floor for ours.
 
 ## Repository conventions
 

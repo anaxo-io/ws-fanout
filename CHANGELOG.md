@@ -67,8 +67,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   keeping 1.88 here would have been a claim only the jobs that strip the dependency could
   honour — the `msrv` job strips it, so it would have passed green while the `outcry`
   feature was broken for anyone on 1.88.
-- `outcry` v0.1.0 to v0.2.0. No source change beyond the MSRV bump above; the consumer
-  API this crate uses is unchanged.
+- `outcry` v0.1.0 to v0.2.0, and from a git tag to the crates.io release. No source
+  change beyond the MSRV bump above; the consumer API this crate uses is unchanged. With
+  no git dependency left, `cargo package` works, and the release workflow runs it as the
+  artefact check instead of `cargo check --all-features`.
 
 ## [0.1.1] - 2026-09-15
 

@@ -3,11 +3,6 @@ name: Release
 # Cuts the GitHub release for a `vX.Y.Z` tag. The procedure this completes, and the
 # branch rules that go with it, are in
 # https://github.com/anaxo-io/.github/blob/main/RELEASING.md.
-#
-# `package: false` because the `outcry` feature is a git dependency and `cargo package`
-# resolves every dependency against crates.io regardless of features. The shared workflow
-# runs `cargo check --all-features` instead; `cargo package` becomes possible only once
-# outcry is on crates.io.
 on:
   push:
     tags: ["v*"]
@@ -18,5 +13,3 @@ permissions:
 jobs:
   release:
     uses: anaxo-io/.github/.github/workflows/release-rust.yml@main
-    with:
-      package: false
