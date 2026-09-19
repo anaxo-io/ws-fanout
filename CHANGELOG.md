@@ -71,6 +71,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   change beyond the MSRV bump above; the consumer API this crate uses is unchanged. With
   no git dependency left, `cargo package` works, and the release workflow runs it as the
   artefact check instead of `cargo check --all-features`.
+  `.cargo/config.toml`, whose only setting told cargo to fetch git sources through the
+  git CLI, is gone with the git source.
 
 ## [0.1.1] - 2026-09-15
 
